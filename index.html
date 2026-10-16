@@ -1,0 +1,49 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Task Hub</title>
+
+  <!-- Connect the original theme -->
+  <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+  <main class="container">
+    <h1>My Task Hub ✨</h1>
+    <p class="subtitle">Your life, slightly less chaotic.</p>
+
+    <section class="progress-section">
+      <p id="progress">Completed: 0 of 0 tasks</p>
+      <div class="progress-bar">
+        <div id="progress-fill"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>My Tasks</h2>
+
+      <div class="task-input">
+        <input
+          id="new-task"
+          type="text"
+          placeholder="What do you need to do?"
+          maxlength="200"
+        >
+        <button id="add-task" type="button">Add Task</button>
+      </div>
+
+      <div id="task-list" class="task-list"></div>
+    </section>
+
+    <section>
+      <h2>Completed Tasks </h2>
+      <div id="completed-list" class="task-list"></div>
+    </section>
+  </main>
+
+  <script src="./script.js"></script>
+</body>
+</html>
