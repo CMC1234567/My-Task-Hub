@@ -1,188 +1,316 @@
 
-const taskList = document.getElementById('task-list');
-const completedList = document.getElementById('completed-list');
-const newTaskInput = document.getElementById('new-task');
-const addTaskButton = document.getElementById('add-task');
-const progress = document.getElementById('progress');
-const progressFill = document.getElementById('progress-fill');
+(function () {
+  const SUPABASE_URL = "https://drybwiuqbjcjpftsujew.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_qz-i_dtJ9_Z4EQvfk9i5sQ_yVycmcBX";
 
-const ACTIVE_KEY = 'myTasks';
-const COMPLETED_KEY = 'completedTasks';
+  function startApp() {
+    const $ = (id) => document.getElementById(id);
 
-function loadTasks(key) {
-  try {
-    const saved = localStorage.getItem(key);
-    const tasks = saved ? JSON.parse(saved) : [];
+    const welcome = $("welcome-section");
+    const login = $("auth-section");
+    const signup = $("signup-section");
+    const dashboard = $("private-content");
 
-    return Array.isArray(tasks)
-      ? tasks.filter(task =>
-          task &&
-          typeof task.text === 'string' &&
-          task.text.trim() !== ''
-        )
-      : [];
-  } catch (error) {
-    console.error('Could not load tasks:', error);
-    return [];
-  }
-}
+    const supabaseLib = window.supabase;
 
-let tasks = loadTasks(ACTIVE_KEY);
-let completedTasks = loadTasks(COMPLETED_KEY);
-
-function saveTasks() {
-  localStorage.setItem(ACTIVE_KEY, JSON.stringify(tasks));
-  localStorage.setItem(COMPLETED_KEY, JSON.stringify(completedTasks));
-}
-
-function updateProgress() {
-  const total = tasks.length + completedTasks.length;
-  const completed = completedTasks.length;
-
-  progress.textContent = `Completed: ${completed} of ${total} tasks`;
-
-  const percentage = total === 0 ? 0 : (completed / total) * 100;
-  progressFill.style.width = percentage + '%';
-}
-
-function createTaskElement(task, isCompleted) {
-  const card = document.createElement('div');
-  card.className = 'task-item';
-
-  if (isCompleted) {
-    card.classList.add('completed-item');
-  }
-
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.checked = isCompleted;
-  checkbox.setAttribute(
-    'aria-label',
-    isCompleted ? 'Mark task as active' : 'Complete task'
-  );
-
-  const span = document.createElement('span');
-  span.className = 'task-text';
-  span.textContent = task.text;
-
-  checkbox.addEventListener('change', function() {
-    if (checkbox.checked) {
-      tasks = tasks.filter(item => item.id !== task.id);
-      completedTasks.push(task);
-    } else {
-      completedTasks = completedTasks.filter(
-        item => item.id !== task.id
-      );
-      tasks.push(task);
+    if (!supabaseLib || !supabaseLib.createClient) {
+      console.error("Supabase library did not load.");
+      alert("Supabase failed to load. Refresh the preview and try again.");
+      return;
     }
 
-    saveTasks();
-    renderTasks();
-  });
+    const db = supabaseLib.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  card.appendChild(checkbox);
-  card.appendChild(span);
+    function showScreen(screen) {
+      if (welcome) welcome.hidden = screen !== "welcome";
+      if (login) login.hidden = screen !== "login";
+      if (signup) signup.hidden = screen !== "signup";
+      if (dashboard) dashboard.hidden = screen !== "dashboard";
+    }
 
-  if (!isCompleted) {
-    const actions = document.createElement('div');
-    actions.className = 'task-actions';
+    // Welcome navigation
+    $("show-login")?.addEventListener("click", () => showScreen("login"));
+    $("show-signup")?.addEventListener("click", () => showScreen("signup"));
+    $("back-to-welcome")?.addEventListener("click", () => showScreen("welcome"));
+    $("back-to-welcome-signup")?.addEventListener("click", () => showScreen("welcome"));
 
-    const editButton = document.createElement('button');
-    editButton.type = 'button';
-    editButton.textContent = 'Edit';
-    editButton.className = 'edit-button';
+    let currentUser = null;
+    let tasks = [];
 
-    editButton.addEventListener('click', function() {
-      const updatedText = prompt('Edit your task:', task.text);
+    function showMessage(id, message, isError = false) {
+      const element = $(id);
+      if (element) {
+        element.textContent = message;
+        element.style.color = isError ? "#ff8b8b" : "#a7f3d0";
+      }
+    }
 
-      if (updatedText === null) return;
+    function setBusy(id, busy) {
+      const button = $(id);
+      if (button) button.disabled = busy;
+    }
 
-      if (updatedText.trim() === '') {
-        alert('Task cannot be empty.');
+    // Load tasks belonging to the signed-in user
+    async function loadTasks() {
+      if (!currentUser) return;
+
+      const { data, error } = await db
+        .from("tasks")
+        .select("*")
+        .eq("user_id", currentUser.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Loading tasks failed:", error);
+        alert("Couldn't load tasks: " + error.message);
         return;
       }
 
-      task.text = updatedText.trim();
-      saveTasks();
+      tasks = data || [];
       renderTasks();
+    }
+
+    function renderTasks() {
+      const activeList = $("task-list");
+      const completedList = $("completed-list");
+
+      if (!activeList || !completedList) return;
+
+      activeList.replaceChildren();
+      completedList.replaceChildren();
+
+      const active = tasks.filter((task) => !task.completed_at);
+      const completed = tasks.filter((task) => task.completed_at);
+
+      function makeTaskRow(task, isCompleted) {
+        const row = document.createElement("div");
+        row.style.cssText =
+          "display:flex;align-items:center;gap:10px;padding:12px;" +
+          "margin-bottom:8px;background:#29292f;border-radius:10px;";
+
+        const title = document.createElement("span");
+        title.textContent = task.title;
+        title.style.cssText = "flex:1;overflow-wrap:anywhere;";
+
+        if (isCompleted) {
+          title.style.textDecoration = "line-through";
+          title.style.opacity = "0.65";
+        }
+
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.textContent = isCompleted ? "Undo" : "Complete";
+        toggle.addEventListener("click", () => toggleTask(task));
+
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "Delete";
+        remove.addEventListener("click", () => deleteTask(task));
+
+        row.append(title, toggle, remove);
+        return row;
+      }
+
+      active.forEach((task) => {
+        activeList.appendChild(makeTaskRow(task, false));
+      });
+
+      completed.forEach((task) => {
+        completedList.appendChild(makeTaskRow(task, true));
+      });
+
+      const total = tasks.length;
+      const done = completed.length;
+      const remaining = total - done;
+      const rate = total ? Math.round((done / total) * 100) : 0;
+
+      if ($("total-tasks")) $("total-tasks").textContent = total;
+      if ($("dashboard-completed")) $("dashboard-completed").textContent = done;
+      if ($("remaining-tasks")) $("remaining-tasks").textContent = remaining;
+      if ($("completion-rate")) $("completion-rate").textContent = rate + "%";
+
+      if ($("progress")) {
+        $("progress").textContent = `Completed: ${done} of ${total} tasks`;
+      }
+
+      if ($("progress-fill")) $("progress-fill").style.width = rate + "%";
+      if ($("dashboard-progress-fill")) {
+        $("dashboard-progress-fill").style.width = rate + "%";
+      }
+    }
+
+    async function toggleTask(task) {
+      const completedAt = task.completed_at ? null : new Date().toISOString();
+
+      const { error } = await db
+        .from("tasks")
+        .update({ completed_at: completedAt })
+        .eq("id", task.id)
+        .eq("user_id", currentUser.id);
+
+      if (error) {
+        alert("Couldn't update task: " + error.message);
+        return;
+      }
+
+      await loadTasks();
+    }
+
+    async function deleteTask(task) {
+      if (!confirm(`Delete "${task.title}"?`)) return;
+
+      const { error } = await db
+        .from("tasks")
+        .delete()
+        .eq("id", task.id)
+        .eq("user_id", currentUser.id);
+
+      if (error) {
+        alert("Couldn't delete task: " + error.message);
+        return;
+      }
+
+      await loadTasks();
+    }
+
+    // Create a task
+    $("add-task")?.addEventListener("click", async () => {
+      if (!currentUser) return;
+
+      const input = $("new-task");
+      const title = input?.value.trim();
+
+      if (!title) {
+        alert("Type a task first.");
+        input?.focus();
+        return;
+      }
+
+      const button = $("add-task");
+      if (button) button.disabled = true;
+
+      const { error } = await db.from("tasks").insert({
+        user_id: currentUser.id,
+        title: title
+      });
+
+      if (button) button.disabled = false;
+
+      if (error) {
+        alert("Couldn't add task: " + error.message);
+        return;
+      }
+
+      input.value = "";
+      await loadTasks();
     });
 
-    const deleteButton = document.createElement('button');
-    deleteButton.type = 'button';
-    deleteButton.textContent = 'Delete';
-    deleteButton.className = 'delete-button';
+    // Login
+    $("auth-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setBusy("login-button", true);
+      showMessage("auth-message", "");
 
-    deleteButton.addEventListener('click', function() {
-      if (!confirm(`Delete "${task.text}"?`)) return;
+      const email = $("auth-email").value.trim();
+      const password = $("auth-password").value;
 
-      tasks = tasks.filter(item => item.id !== task.id);
-      saveTasks();
-      renderTasks();
+      const { data, error } = await db.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      setBusy("login-button", false);
+
+      if (error) {
+        showMessage("auth-message", error.message, true);
+        return;
+      }
+
+      await enterDashboard(data.user);
     });
 
-    actions.appendChild(editButton);
-    actions.appendChild(deleteButton);
-    card.appendChild(actions);
+    // Create account
+    $("signup-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setBusy("signup-button", true);
+      showMessage("signup-message", "");
+
+      const email = $("signup-email").value.trim();
+      const password = $("signup-password").value;
+
+      const { data, error } = await db.auth.signUp({
+        email,
+        password
+      });
+
+      setBusy("signup-button", false);
+
+      if (error) {
+        showMessage("signup-message", error.message, true);
+        return;
+      }
+
+      if (data.session && data.user) {
+        await enterDashboard(data.user);
+      } else {
+        showMessage(
+          "signup-message",
+          "Account created! Check your email to confirm your account, then log in."
+        );
+      }
+    });
+
+    async function enterDashboard(user) {
+      currentUser = user;
+      showScreen("dashboard");
+      await loadTasks();
+    }
+
+    // Logout
+    $("logout-button")?.addEventListener("click", async () => {
+      const { error } = await db.auth.signOut();
+
+      if (error) {
+        alert("Couldn't log out: " + error.message);
+        return;
+      }
+
+      currentUser = null;
+      tasks = [];
+      showScreen("welcome");
+    });
+
+    // Restore an existing login when the page is refreshed
+    async function restoreSession() {
+      const { data, error } = await db.auth.getSession();
+
+      if (error) {
+        console.error("Could not restore session:", error);
+        showScreen("welcome");
+        return;
+      }
+
+      if (data.session?.user) {
+        await enterDashboard(data.session.user);
+      } else {
+        showScreen("welcome");
+      }
+    }
+
+    db.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        currentUser = null;
+        tasks = [];
+        showScreen("welcome");
+      }
+    });
+
+    restoreSession();
   }
 
-  return card;
-}
-
-function renderTasks() {
-  taskList.replaceChildren();
-  completedList.replaceChildren();
-
-  if (tasks.length === 0) {
-    const message = document.createElement('p');
-    message.className = 'empty-message';
-    message.textContent = 'No active tasks. Add one above!';
-    taskList.appendChild(message);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", startApp, { once: true });
   } else {
-    tasks.forEach(task => {
-      taskList.appendChild(createTaskElement(task, false));
-    });
+    startApp();
   }
-
-  if (completedTasks.length === 0) {
-    const message = document.createElement('p');
-    message.className = 'empty-message';
-    message.textContent = 'Completed tasks will appear here.';
-    completedList.appendChild(message);
-  } else {
-    completedTasks.forEach(task => {
-      completedList.appendChild(createTaskElement(task, true));
-    });
-  }
-
-  updateProgress();
-}
-
-function addTask() {
-  const text = newTaskInput.value.trim();
-
-  if (text === '') {
-    alert('Please enter a task first!');
-    return;
-  }
-
-  tasks.push({
-    id: Date.now().toString() + Math.random().toString(16).slice(2),
-    text: text
-  });
-
-  newTaskInput.value = '';
-  saveTasks();
-  renderTasks();
-  newTaskInput.focus();
-}
-
-addTaskButton.addEventListener('click', addTask);
-
-newTaskInput.addEventListener('keydown', function(event) {
-  if (event.key === 'Enter') {
-    addTask();
-  }
-});
-
-saveTasks();
-renderTasks();
+})();
