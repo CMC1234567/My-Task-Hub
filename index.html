@@ -5,45 +5,184 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>My Task Hub</title>
-
-  <!-- Connect the original theme -->
   <link rel="stylesheet" href="./style.css">
 </head>
 
 <body>
   <main class="container">
-    <h1>My Task Hub ✨</h1>
+    <h1>My Task Hub</h1>
     <p class="subtitle">Your life, slightly less chaotic.</p>
 
-    <section class="progress-section">
-      <p id="progress">Completed: 0 of 0 tasks</p>
-      <div class="progress-bar">
-        <div id="progress-fill"></div>
-      </div>
+    <!-- WELCOME SCREEN -->
+    <section id="welcome-section">
+      <h2>Welcome to My Task Hub</h2>
+      <p>Keep your tasks organized, one step at a time.</p>
+
+      <button
+        type="button"
+        id="show-login"
+        onclick="document.getElementById('welcome-section').hidden=true; document.getElementById('auth-section').hidden=false; document.getElementById('signup-section').hidden=true;"
+      >
+        Log In
+      </button>
+
+      <button
+        type="button"
+        id="show-signup"
+        onclick="document.getElementById('welcome-section').hidden=true; document.getElementById('signup-section').hidden=false; document.getElementById('auth-section').hidden=true;"
+      >
+        Create Account
+      </button>
     </section>
 
-    <section>
-      <h2>My Tasks</h2>
+    <!-- LOGIN FORM -->
+    <section id="auth-section" hidden>
+      <h2>Welcome Back</h2>
+      <p>Log in to access your tasks from anywhere.</p>
 
-      <div class="task-input">
+      <form id="auth-form">
+        <label for="auth-email">Email</label>
         <input
-          id="new-task"
-          type="text"
-          placeholder="What do you need to do?"
-          maxlength="200"
+          id="auth-email"
+          type="email"
+          placeholder="you@example.com"
+          autocomplete="email"
+          required
         >
-        <button id="add-task" type="button">Add Task</button>
-      </div>
 
-      <div id="task-list" class="task-list"></div>
+        <label for="auth-password">Password</label>
+        <input
+          id="auth-password"
+          type="password"
+          placeholder="Enter your password"
+          autocomplete="current-password"
+          minlength="6"
+          required
+        >
+
+        <button type="submit" id="login-button">Log In</button>
+        <p id="auth-message" role="status"></p>
+      </form>
+
+      <button
+        type="button"
+        id="back-to-welcome"
+        onclick="document.getElementById('auth-section').hidden=true; document.getElementById('welcome-section').hidden=false;"
+      >
+        Back
+      </button>
     </section>
 
-    <section>
-      <h2>Completed Tasks </h2>
-      <div id="completed-list" class="task-list"></div>
+    <!-- CREATE ACCOUNT FORM -->
+    <section id="signup-section" hidden>
+      <h2>Create Your Account</h2>
+      <p>Start organizing your life today.</p>
+
+      <form id="signup-form">
+        <label for="signup-email">Email</label>
+        <input
+          id="signup-email"
+          type="email"
+          placeholder="you@example.com"
+          autocomplete="email"
+          required
+        >
+
+        <label for="signup-password">Password</label>
+        <input
+          id="signup-password"
+          type="password"
+          placeholder="Create a password"
+          autocomplete="new-password"
+          minlength="6"
+          required
+        >
+
+        <button type="submit" id="signup-button">Create Account</button>
+        <p id="signup-message" role="status"></p>
+      </form>
+
+      <button
+        type="button"
+        id="back-to-welcome-signup"
+        onclick="document.getElementById('signup-section').hidden=true; document.getElementById('welcome-section').hidden=false;"
+      >
+        Back
+      </button>
     </section>
+
+    <!-- PRIVATE CONTENT: HIDDEN UNTIL LOGIN -->
+    <div id="private-content" hidden>
+      <button id="logout-button" type="button">Log Out</button>
+
+      <!-- DASHBOARD -->
+      <section class="dashboard">
+        <h2>My Dashboard ✨</h2>
+
+        <div class="dashboard-cards">
+          <div class="dashboard-card">
+            <h3>Total Tasks</h3>
+            <p id="total-tasks">0</p>
+          </div>
+
+          <div class="dashboard-card">
+            <h3>Completed</h3>
+            <p id="dashboard-completed">0</p>
+          </div>
+
+          <div class="dashboard-card">
+            <h3>Remaining</h3>
+            <p id="remaining-tasks">0</p>
+          </div>
+
+          <div class="dashboard-card">
+            <h3>Completion Rate</h3>
+            <p id="completion-rate">0%</p>
+          </div>
+        </div>
+
+        <div class="dashboard-progress">
+          <p>Overall Progress</p>
+          <div class="progress-bar">
+            <div id="dashboard-progress-fill"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- OVERALL PROGRESS -->
+      <section class="progress-section">
+        <p id="progress">Completed: 0 of 0 tasks</p>
+        <div class="progress-bar">
+          <div id="progress-fill"></div>
+        </div>
+      </section>
+
+      <!-- ACTIVE TASKS -->
+      <section>
+        <h2>My Tasks</h2>
+
+        <div class="task-input">
+          <input
+            id="new-task"
+            type="text"
+            placeholder="What do you need to do?"
+            maxlength="200"
+          >
+          <button id="add-task" type="button">Add Task</button>
+        </div>
+
+        <div id="task-list" class="task-list"></div>
+      </section>
+
+      <!-- COMPLETED TASKS -->
+      <section>
+        <h2>Completed Tasks</h2>
+        <div id="completed-list" class="task-list"></div>
+      </section>
+    </div>
   </main>
 
-  <script src="./script.js"></script>
+  <!-- SUPABASE LIBRARY -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </body>
 </html>
