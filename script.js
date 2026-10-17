@@ -1,7 +1,8 @@
 
 (function () {
   const SUPABASE_URL = "https://drybwiuqbjcjpftsujew.supabase.co";
-  const SUPABASE_KEY = "sb_publishable_qz-i_dtJ9_Z4EQvfk9i5sQ_yVycmcBX";
+  const SUPABASE_KEY =
+    "sb_publishable_qz-i_dtJ9_Z4EQvfk9i5sQ_yVycmcBX";
 
   function startApp() {
     const $ = (id) => document.getElementById(id);
@@ -11,15 +12,20 @@
     const signup = $("signup-section");
     const dashboard = $("private-content");
 
-    const supabaseLib = window.supabase;
-
-    if (!supabaseLib || !supabaseLib.createClient) {
+    if (!window.supabase?.createClient) {
       console.error("Supabase library did not load.");
-      alert("Supabase failed to load. Refresh the preview and try again.");
+      alert("Supabase failed to load. Please refresh the page.");
       return;
     }
 
-    const db = supabaseLib.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const db = window.supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_KEY
+    );
+
+    let currentUser = null;
+    let tasks = [];
+    let authCheckInProgress = false;
 
     function showScreen(screen) {
       if (welcome) welcome.hidden = screen !== "welcome";
@@ -28,21 +34,12 @@
       if (dashboard) dashboard.hidden = screen !== "dashboard";
     }
 
-    // Welcome navigation
-    $("show-login")?.addEventListener("click", () => showScreen("login"));
-    $("show-signup")?.addEventListener("click", () => showScreen("signup"));
-    $("back-to-welcome")?.addEventListener("click", () => showScreen("welcome"));
-    $("back-to-welcome-signup")?.addEventListener("click", () => showScreen("welcome"));
-
-    let currentUser = null;
-    let tasks = [];
-
     function showMessage(id, message, isError = false) {
       const element = $(id);
-      if (element) {
-        element.textContent = message;
-        element.style.color = isError ? "#ff8b8b" : "#a7f3d0";
-      }
+      if (!element) return;
+
+      element.textContent = message;
+      element.style.color = isError ? "#ff8b8b" : "#a7f3d0";
     }
 
     function setBusy(id, busy) {
@@ -50,7 +47,24 @@
       if (button) button.disabled = busy;
     }
 
-    // Load tasks belonging to the signed-in user
+    // Screen navigation
+    $("show-login")?.addEventListener("click", () => {
+      showScreen("login");
+    });
+
+    $("show-signup")?.addEventListener("click", () => {
+      showScreen("signup");
+    });
+
+    $("back-to-welcome")?.addEventListener("click", () => {
+      showScreen("welcome");
+    });
+
+    $("back-to-welcome-signup")?.addEventListener("click", () => {
+      showScreen("welcome");
+    });
+
+    // Load the signed-in user's tasks
     async function loadTasks() {
       if (!currentUser) return;
 
@@ -125,22 +139,44 @@
       const rate = total ? Math.round((done / total) * 100) : 0;
 
       if ($("total-tasks")) $("total-tasks").textContent = total;
-      if ($("dashboard-completed")) $("dashboard-completed").textContent = done;
-      if ($("remaining-tasks")) $("remaining-tasks").textContent = remaining;
-      if ($("completion-rate")) $("completion-rate").textContent = rate + "%";
-
-      if ($("progress")) {
-        $("progress").textContent = `Completed: ${done} of ${total} tasks`;
+      if ($("dashboard-completed")) {
+        $("dashboard-completed").textContent = done;
       }
-
-      if ($("progress-fill")) $("progress-fill").style.width = rate + "%";
+      if ($("remaining-tasks")) {
+        $("remaining-tasks").textContent = remaining;
+      }
+      if ($("completion-rate")) {
+        $("completion-rate").textContent = rate + "%";
+      }
+      if ($("progress")) {
+        $("progress").textContent =
+          `Completed: ${done} of ${total} tasks`;
+      }
+      if ($("progress-fill")) {
+        $("progress-fill").style.width = rate + "%";
+      }
       if ($("dashboard-progress-fill")) {
         $("dashboard-progress-fill").style.width = rate + "%";
       }
     }
 
+    async function enterDashboard(user) {
+      if (!user) {
+        showScreen("welcome");
+        return;
+      }
+
+      currentUser = user;
+      showScreen("dashboard");
+      await loadTasks();
+    }
+
     async function toggleTask(task) {
-      const completedAt = task.completed_at ? null : new Date().toISOString();
+      if (!currentUser) return;
+
+      const completedAt = task.completed_at
+        ? null
+        : new Date().toISOString();
 
       const { error } = await db
         .from("tasks")
@@ -157,6 +193,7 @@
     }
 
     async function deleteTask(task) {
+      if (!currentUser) return;
       if (!confirm(`Delete "${task.title}"?`)) return;
 
       const { error } = await db
@@ -173,9 +210,12 @@
       await loadTasks();
     }
 
-    // Create a task
+    // Add task
     $("add-task")?.addEventListener("click", async () => {
-      if (!currentUser) return;
+      if (!currentUser) {
+        alert("Please log in first.");
+        return;
+      }
 
       const input = $("new-task");
       const title = input?.value.trim();
@@ -186,15 +226,14 @@
         return;
       }
 
-      const button = $("add-task");
-      if (button) button.disabled = true;
+      setBusy("add-task", true);
 
       const { error } = await db.from("tasks").insert({
         user_id: currentUser.id,
-        title: title
+        title
       });
 
-      if (button) button.disabled = false;
+      setBusy("add-task", false);
 
       if (error) {
         alert("Couldn't add task: " + error.message);
@@ -208,67 +247,94 @@
     // Login
     $("auth-form")?.addEventListener("submit", async (event) => {
       event.preventDefault();
+
       setBusy("login-button", true);
       showMessage("auth-message", "");
 
       const email = $("auth-email").value.trim();
       const password = $("auth-password").value;
 
-      const { data, error } = await db.auth.signInWithPassword({
-        email,
-        password
-      });
+      try {
+        const { data, error } = await db.auth.signInWithPassword({
+          email,
+          password
+        });
 
-      setBusy("login-button", false);
+        if (error) {
+          showMessage("auth-message", error.message, true);
+          return;
+        }
 
-      if (error) {
-        showMessage("auth-message", error.message, true);
-        return;
+        if (!data.user) {
+          showMessage(
+            "auth-message",
+            "No user was returned. Please try logging in again.",
+            true
+          );
+          return;
+        }
+
+        await enterDashboard(data.user);
+      } catch (error) {
+        console.error("Login failed:", error);
+        showMessage(
+          "auth-message",
+          error.message || "Login failed unexpectedly.",
+          true
+        );
+      } finally {
+        setBusy("login-button", false);
       }
-
-      await enterDashboard(data.user);
     });
 
     // Create account
     $("signup-form")?.addEventListener("submit", async (event) => {
       event.preventDefault();
+
       setBusy("signup-button", true);
       showMessage("signup-message", "");
 
       const email = $("signup-email").value.trim();
       const password = $("signup-password").value;
 
-      const { data, error } = await db.auth.signUp({
-        email,
-        password
-      });
+      try {
+        const { data, error } = await db.auth.signUp({
+          email,
+          password
+        });
 
-      setBusy("signup-button", false);
+        if (error) {
+          showMessage("signup-message", error.message, true);
+          return;
+        }
 
-      if (error) {
-        showMessage("signup-message", error.message, true);
-        return;
-      }
-
-      if (data.session && data.user) {
-        await enterDashboard(data.user);
-      } else {
+        if (data.session && data.user) {
+          await enterDashboard(data.user);
+        } else {
+          showMessage(
+            "signup-message",
+            "Account created or already registered. Check your email for confirmation. If you've confirmed it, log in using your existing account."
+          );
+        }
+      } catch (error) {
+        console.error("Signup failed:", error);
         showMessage(
           "signup-message",
-          "Account created! Check your email to confirm your account, then log in."
+          error.message || "Account creation failed.",
+          true
         );
+      } finally {
+        setBusy("signup-button", false);
       }
     });
 
-    async function enterDashboard(user) {
-      currentUser = user;
-      showScreen("dashboard");
-      await loadTasks();
-    }
-
     // Logout
     $("logout-button")?.addEventListener("click", async () => {
+      setBusy("logout-button", true);
+
       const { error } = await db.auth.signOut();
+
+      setBusy("logout-button", false);
 
       if (error) {
         alert("Couldn't log out: " + error.message);
@@ -277,27 +343,41 @@
 
       currentUser = null;
       tasks = [];
+      renderTasks();
       showScreen("welcome");
     });
 
-    // Restore an existing login when the page is refreshed
+    // Restore session on page load.
+    // Do not redirect to Welcome just because this check is still running.
     async function restoreSession() {
-      const { data, error } = await db.auth.getSession();
+      if (authCheckInProgress) return;
+      authCheckInProgress = true;
 
-      if (error) {
+      try {
+        const { data, error } = await db.auth.getSession();
+
+        if (error) {
+          console.error("Session check failed:", error.message);
+          showScreen("welcome");
+          return;
+        }
+
+        if (data.session?.user) {
+          await enterDashboard(data.session.user);
+        } else {
+          showScreen("welcome");
+        }
+      } catch (error) {
         console.error("Could not restore session:", error);
         showScreen("welcome");
-        return;
-      }
-
-      if (data.session?.user) {
-        await enterDashboard(data.session.user);
-      } else {
-        showScreen("welcome");
+      } finally {
+        authCheckInProgress = false;
       }
     }
 
-    db.auth.onAuthStateChange((event, session) => {
+    // React to an explicit logout only.
+    // SIGNED_IN is handled by the login form above.
+    db.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_OUT") {
         currentUser = null;
         tasks = [];
@@ -309,7 +389,9 @@
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", startApp, { once: true });
+    document.addEventListener("DOMContentLoaded", startApp, {
+      once: true
+    });
   } else {
     startApp();
   }
